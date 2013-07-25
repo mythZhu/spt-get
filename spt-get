@@ -1,0 +1,65 @@
+#!/usr/bin/python -tt
+# vim: sw=4 ts=4 sts=4 et ai
+
+import sys
+from optparse import OptionParser
+
+import msger
+from urlfetch import fetch_urls
+from depsolve import resolve_deps
+from pkginstall import install_pkgs
+
+def exit(exit_code):
+    if exit_code == 0:
+        msger.info("Succeeded!")
+    else:
+        msger.error("Sorry, failed")
+    sys.exit(exit_code)
+
+def main(argv):
+    usage = "%prog --repo=REPO --pkgs=PKG1,PKG2 --root=ROOTDIR"
+    version = "%prog 0.1"
+    parser = OptionParser(usage=usage, version=version)
+
+    parser.add_option('--repo', action="store", dest="repository", default=None,
+                      help="specify which repository to request")
+    parser.add_option('--pkgs', action="store", dest="packages", default=None,
+                      help="specify which packages to install")
+    parser.add_option('--root', action="store", dest="rootdir", default=None,
+                      help="install the packages to specified directory")
+
+    opts, args = parser.parse_args(argv)
+
+    if not opts.repository or not opts.packages or not opts.rootdir:
+        parser.print_help()
+        sys.exit(1)
+
+    msger.info(parser.get_version() + '\n')
+
+    msger.info("Resolving Dependencies")
+    packages = [ pkg.strip() for pkg in opts.packages.split(',') ]
+    pkg_urls = resolve_deps(opts.repository, packages)
+    pkg_urls or exit(1)
+    msger.info("\nDependencies resolved\n")
+    msger.info("-" * 80)
+
+    msger.info("Downloading Packages")
+    pkg_list = fetch_urls(pkg_urls)
+    len(pkg_urls) == len(pkg_list) or exit(1)
+    msger.info("\nPackages downloaded\n")
+    msger.info("-" * 80)
+
+    msger.info("Installing Packages")
+    ins_list = install_pkgs(pkg_list, opts.rootdir, cleanup=True)
+    len(pkg_list) == len(ins_list) or exit(1)
+    msger.info("\nPackages installed\n")
+    msger.info("-" * 80)
+
+    exit(0)
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except KeyboardInterrupt, e:
+        msger.warning("\n\nExiting on user cancel.")
+        sys.exit(1)
